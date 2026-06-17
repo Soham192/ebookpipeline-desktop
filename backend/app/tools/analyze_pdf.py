@@ -1,8 +1,18 @@
+from pathlib import Path
+from typing import TypedDict
+
 import fitz
 
 
-def analyze_pdf(pdf_path: str) -> dict[str, int | bool]:
-    doc = fitz.open(pdf_path)
+class PdfAnalysis(TypedDict):
+    pages: int
+    scanned_pages: int
+    requires_ocr: bool
+
+
+def analyze_pdf(pdf_path: str | Path) -> PdfAnalysis:
+    pdf_path = Path(pdf_path)
+    doc = fitz.open(str(pdf_path))
     try:
         scanned_pages = 0
         for page in doc:

@@ -26,8 +26,8 @@ function App() {
       <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-lg p-8 dark:bg-slate-900">
         <div className="flex items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold">Kindle Agent</h1>
-            <p className="text-slate-600 dark:text-slate-300">Upload a PDF and get a Kindle-ready ebook.</p>
+            <h1 className="text-3xl font-bold">Universal E-Reader Agent</h1>
+            <p className="text-slate-600 dark:text-slate-300">Upload a PDF and deliver it to your chosen reading platform.</p>
           </div>
           <button
             type="button"
@@ -46,16 +46,20 @@ function App() {
             <div className="text-sm text-slate-700 dark:text-slate-200 space-y-2">
               <p><strong>Title:</strong> {result.output?.title || 'Unknown Title'}</p>
               <p><strong>Author:</strong> {result.output?.author || 'Unknown Author'}</p>
-              <p><strong>Format:</strong> {result.output?.format?.toUpperCase() || 'AZW3'}</p>
+              <p><strong>Destination:</strong> {result.destination?.toUpperCase() || 'DOWNLOAD'}</p>
+              <p><strong>Format:</strong> {result.output?.format?.toUpperCase() || 'EPUB'}</p>
               <p><strong>OCR required:</strong> {result.output?.requires_ocr ? 'Yes' : 'No'}</p>
-              {result.kindle_delivery && (
+              {result.output?.ocr_error && (
+                <p className="text-xs text-yellow-400">OCR warning: {result.output.ocr_error}</p>
+              )}
+              {result.delivery && (
                 <div>
                   <p>
-                    <strong>Kindle delivery:</strong>{' '}
-                    {result.kindle_delivery.sent ? `sent to ${result.kindle_delivery.recipient}` : 'failed'}
+                    <strong>Delivery status:</strong>{' '}
+                    {result.delivery.sent ? `sent to ${result.delivery.recipient}` : 'failed'}
                   </p>
-                  {!result.kindle_delivery.sent && result.kindle_delivery.error && (
-                    <p className="text-xs text-red-400">{result.kindle_delivery.error}</p>
+                  {!result.delivery.sent && result.delivery.error && (
+                    <p className="text-xs text-red-400">{result.delivery.error}</p>
                   )}
                 </div>
               )}
@@ -66,7 +70,7 @@ function App() {
                   href={result.download_url}
                   className="inline-flex items-center justify-center rounded-full bg-slate-900 text-white px-5 py-3 text-sm font-semibold hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
                 >
-                  Download {result.output?.format?.toUpperCase() || 'AZW3'}
+                  Download EPUB
                 </a>
               </div>
             )}

@@ -9,16 +9,20 @@ def run_ocr(input_pdf: str, output_pdf: str) -> None:
     command = [
         "ocrmypdf",
         "--skip-text",
+        "--output-type",
+        "pdf",
         str(input_pdf),
         str(output_pdf),
     ]
     try:
-        subprocess.run(command, check=True)
+        subprocess.run(command, check=True, capture_output=True, text=True)
     except FileNotFoundError as exc:
         raise RuntimeError(
             "OCR tool not found. Please install ocrmypdf and tesseract."
         ) from exc
     except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.strip() if exc.stderr else str(exc)
         raise RuntimeError(
-            f"OCR processing failed: {exc}. Ensure ocrmypdf is installed and the PDF can be processed."
+            "OCR processing failed. This can happen if the PDF is malformed or Ghostscript cannot render it. "
+            f"Command output: {stderr}"
         ) from exc

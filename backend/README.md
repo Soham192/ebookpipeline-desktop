@@ -1,4 +1,4 @@
-# Kindle Agent Backend
+# Universal E-Reader Agent Backend
 
 ## Setup
 
@@ -25,14 +25,62 @@ source .venv/bin/activate
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## Notes
+## Architecture
 
-- Requires `ocrmypdf`, `ebook-convert`, and `tesseract` installed on the host.
-- Upload PDF to `/upload` and download AZW3 from `/download/{task_id}`.
+The backend now uses a modular delivery adapter architecture. The upload process converts uploaded PDFs into EPUB by default, then passes the EPUB to a destination adapter:
 
-## SMTP testing with MailHog
+- `download` → returns a downloadable EPUB
+- `kindle` → sends the EPUB to a Kindle email address via SMTP
 
-For local SMTP testing, run MailHog and set environment variables before starting the backend:
+This makes it easy to add new delivery destinations as adapters without changing the core agent logic.
+
+## API Contract
+
+### `POST /upload`
+
+Uploads a PDF and selects a delivery destination.
+
+Form fields:
+
+- `file` (file, required): PDF document
+- `title` (string, optional): override title metadata
+- `author` (string, optional): override author metadata
+- `destination` (string, optional): `download` or `kindle` (default: `download`)
+- `kindle_email` (string, optional): required when `destination=kindle`
+- `sender_email` (string, optional): optional SMTP sender override
+
+Response:
+
+- `status`: `ok`
+- `task_id`: generated task identifier
+- `destination`: selected delivery destination
+- `download_url`: URL for the converted EPUB download
+- `output`: processing result metadata
+- `delivery`: delivery adapter result
+- `delivery_queued`: true when Kindle delivery failed and is queued for retry
+
+### `GET /download/{task_id}/{output_format}`
+
+Downloads the converted file from the workspace output directory.
+
+- `task_id`: task identifier
+- `output_format`: currently `epub`
+
+### `POST /retry_delivery/{task_id}`
+
+Retries Kindle delivery for a previously failed delivery.
+
+- `task_id`: task identifier for a queued retry
+
+## Requirements
+
+- `ocrmypdf`
+- `ebook-convert` (Calibre)
+- `tesseract`
+
+## Local SMTP testing with MailHog
+
+Run MailHog and set environment variables before starting the backend:
 
 ```bash
 docker run -d --name mailhog -p 1025:1025 -p 8025:8025 mailhog/mailhog
@@ -68,6 +116,6 @@ poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Important:
 
-- `SMTP_SENDER` must match an address approved in Amazon "Approved Personal Document E-mail".
+- `SMTP_SENDER` must match an approved address in Amazon's "Approved Personal Document E-mail" list.
 - `kindle_email` must be your actual Kindle document address (for example `yourname@kindle.com`).
 - If the relay requires TLS, keep `SMTP_USE_TLS=true`.

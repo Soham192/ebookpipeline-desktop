@@ -9,15 +9,17 @@ import json
 
 from dotenv import load_dotenv
 from app.agent import Agent
+from app.delivery.download_adapter import DownloadAdapter
+from app.delivery.kindle_adapter import KindleAdapter
 from app.tools.send_to_kindle import send_to_kindle, verify_smtp_credentials
 
 load_dotenv()
 
-app = FastAPI(title="Kindle Agent Backend")
+app = FastAPI(title="Universal E-Reader Agent Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,6 +33,10 @@ PENDING_DIR = Path(__file__).resolve().parent.parent / "pending_deliveries"
 PENDING_DIR.mkdir(parents=True, exist_ok=True)
 
 agent = Agent()
+DELIVERY_ADAPTERS = {
+    "download": DownloadAdapter(),
+    "kindle": KindleAdapter(),
+}
 
 @app.get("/smtp_test")
 def smtp_test():
@@ -46,68 +52,65 @@ async def upload_pdf(
     author: str | None = Form(None),
     kindle_email: str | None = Form(None),
     sender_email: str | None = Form(None),
-    output_format: str | None = Form(None),
-    format: str | None = Form(None),
+    destination: str | None = Form("download"),
 ):
-    allowed_formats = {"azw3", "epub", "kfx", "fb2", "pdf"}
-    output_format = output_format or format or "azw3"
+    allowed_destinations = {"download", "kindle"}
+    destination = (destination or "download").lower()
+    if destination not in allowed_destinations:
+        raise HTTPException(status_code=400, detail="Unsupported destination")
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF uploads are supported")
-    if output_format not in allowed_formats:
-        raise HTTPException(status_code=400, detail="Unsupported output format")
 
     file_id = uuid4().hex
     saved_path = UPLOAD_DIR / f"{file_id}.pdf"
     with saved_path.open("wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    metadata = {"title": title, "author": author}
+    metadata = {
+        "title": title,
+        "author": author,
+        "kindle_email": kindle_email,
+        "sender_email": sender_email,
+    }
     try:
         result = await agent.process_pdf(
             str(saved_path),
             metadata,
-            output_format=output_format,
+            output_format="epub",
             output_name=file_id,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    kindle_result = None
-    if kindle_email:
-        try:
-            kindle_result = send_to_kindle(
-                result["output_path"],
-                kindle_email,
-                result["title"],
-                result["author"],
-                smtp_sender_override=sender_email,
-            )
-        except RuntimeError as exc:
-            # Do not fail the whole request; surface the error in the response
-            kindle_result = {"sent": False, "error": str(exc)}
+    delivery_adapter = DELIVERY_ADAPTERS[destination]
+    delivery_result = delivery_adapter.deliver(
+        Path(result["output_path"]),
+        metadata,
+        destination,
+    )
 
-        # If delivery failed, queue for retry later
-        if kindle_result and not kindle_result.get("sent"):
-            pending = {
-                "task_id": file_id,
-                "output_path": result["output_path"],
-                "kindle_email": kindle_email,
-                "sender_email": sender_email,
-                "title": result["title"],
-                "author": result["author"],
-                "error": kindle_result.get("error"),
-            }
-            pending_file = PENDING_DIR / f"{file_id}.json"
-            with pending_file.open("w", encoding="utf-8") as pf:
-                json.dump(pending, pf)
+    if destination == "kindle" and not delivery_result.get("sent"):
+        pending = {
+            "task_id": file_id,
+            "output_path": result["output_path"],
+            "kindle_email": kindle_email,
+            "sender_email": sender_email,
+            "title": result["title"],
+            "author": result["author"],
+            "error": delivery_result.get("error"),
+        }
+        pending_file = PENDING_DIR / f"{file_id}.json"
+        with pending_file.open("w", encoding="utf-8") as pf:
+            json.dump(pending, pf)
 
     return {
         "status": "ok",
         "task_id": file_id,
+        "destination": destination,
         "download_url": f"http://localhost:8000/download/{file_id}/{result['format']}",
         "output": result,
-        "kindle_delivery": kindle_result,
-        "delivery_queued": bool(kindle_result and not kindle_result.get("sent")),
+        "delivery": delivery_result,
+        "delivery_queued": bool(destination == "kindle" and not delivery_result.get("sent")),
     }
 
 

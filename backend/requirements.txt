@@ -1,0 +1,12 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.23.0
+python-multipart>=0.0.6
+pydantic>=2.8.0
+httpx>=0.24.0
+python-dotenv>=1.1.0
+PyMuPDF>=1.22.0
+python-dateutil>=2.8.2
+
+# Note: ocrmypdf, tesseract, and Calibre (ebook-convert) are system binaries and must be installed on the host.
+# Install them separately via your package manager, e.g.: sudo apt install tesseract-ocr ghostscript
+# and install Calibre from their site to get `ebook-convert`.

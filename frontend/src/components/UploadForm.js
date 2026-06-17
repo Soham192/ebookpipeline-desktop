@@ -6,7 +6,7 @@ export default function UploadForm({ onResult }) {
   const [author, setAuthor] = useState('');
   const [kindleEmail, setKindleEmail] = useState('');
   const [senderEmail, setSenderEmail] = useState('');
-  const [format, setFormat] = useState('azw3');
+  const [destination, setDestination] = useState('download');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -26,7 +26,7 @@ export default function UploadForm({ onResult }) {
     formData.append('author', author);
     formData.append('kindle_email', kindleEmail);
     formData.append('sender_email', senderEmail);
-    formData.append('output_format', format);
+    formData.append('destination', destination);
 
     try {
       const response = await fetch('http://localhost:8000/upload', {
@@ -35,8 +35,14 @@ export default function UploadForm({ onResult }) {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        setMessage(error.detail || 'Upload failed');
+        let errorMessage = 'Upload failed';
+        try {
+          const errorBody = await response.json();
+          errorMessage = errorBody.detail || errorBody.error || errorMessage;
+        } catch (jsonError) {
+          errorMessage = response.statusText || errorMessage;
+        }
+        setMessage(errorMessage);
         onResult(null);
       } else {
         const data = await response.json();
@@ -85,40 +91,41 @@ export default function UploadForm({ onResult }) {
         </div>
       </div>
       <div>
-        <label className="block mb-2 font-medium">Kindle Email (optional)</label>
-        <input
-          type="email"
-          value={kindleEmail}
-          onChange={(event) => setKindleEmail(event.target.value)}
-          placeholder="yourname@kindle.com"
-          className="w-full border rounded-lg p-2"
-        />
-      </div>
-      <div>
-        <label className="block mb-2 font-medium">Sender Email (must be approved by Kindle)</label>
-        <input
-          type="email"
-          value={senderEmail}
-          onChange={(event) => setSenderEmail(event.target.value)}
-          placeholder="sender@example.com"
-          className="w-full border rounded-lg p-2"
-        />
-        <p className="text-xs text-slate-500 mt-1">This address should be the sender approved in your Amazon Kindle account.</p>
-      </div>
-      <div>
-        <label className="block mb-2 font-medium">Output Format</label>
+        <label className="block mb-2 font-medium">Destination</label>
         <select
-          value={format}
-          onChange={(event) => setFormat(event.target.value)}
+          value={destination}
+          onChange={(event) => setDestination(event.target.value)}
           className="w-full border rounded-lg p-2"
         >
-          <option value="azw3">AZW3</option>
-          <option value="pdf">PDF (send original)</option>
-          <option value="epub">EPUB</option>
-          <option value="kfx">KFX</option>
-          <option value="fb2">FB2</option>
+          <option value="download">Download EPUB</option>
+          <option value="kindle">Send to Kindle</option>
         </select>
       </div>
+      {destination === 'kindle' && (
+        <>
+          <div>
+            <label className="block mb-2 font-medium">Kindle Email</label>
+            <input
+              type="email"
+              value={kindleEmail}
+              onChange={(event) => setKindleEmail(event.target.value)}
+              placeholder="yourname@kindle.com"
+              className="w-full border rounded-lg p-2"
+            />
+          </div>
+          <div>
+            <label className="block mb-2 font-medium">Sender Email (must be approved by Kindle)</label>
+            <input
+              type="email"
+              value={senderEmail}
+              onChange={(event) => setSenderEmail(event.target.value)}
+              placeholder="sender@example.com"
+              className="w-full border rounded-lg p-2"
+            />
+            <p className="text-xs text-slate-500 mt-1">This address should be the sender approved in your Amazon Kindle account.</p>
+          </div>
+        </>
+      )}
       <button
         type="submit"
         disabled={loading}

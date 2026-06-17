@@ -1,9 +1,20 @@
 from pathlib import Path
 import shutil
-from app.tools.analyze_pdf import analyze_pdf
+from typing import TypedDict
+
+from app.tools.analyze_pdf import PdfAnalysis, analyze_pdf
 from app.tools.run_ocr import run_ocr
 from app.tools.extract_metadata import extract_metadata
 from app.tools.convert_document import convert_document
+
+
+class ProcessResult(TypedDict):
+    output_path: str
+    format: str
+    title: str
+    author: str
+    requires_ocr: bool
+    ocr_error: str | None
 
 
 class Agent:
@@ -13,14 +24,18 @@ class Agent:
         metadata: dict[str, str | None],
         output_format: str = "azw3",
         output_name: str | None = None,
-    ) -> dict[str, str | bool]:
+    ) -> ProcessResult:
         pdf_path = Path(pdf_path)
         analysis = analyze_pdf(pdf_path)
 
+        ocr_error = None
         if analysis["requires_ocr"]:
             ocr_pdf_path = pdf_path.parent / f"{pdf_path.stem}_ocr.pdf"
-            run_ocr(pdf_path, ocr_pdf_path)
-            pdf_path = ocr_pdf_path
+            try:
+                run_ocr(pdf_path, ocr_pdf_path)
+                pdf_path = ocr_pdf_path
+            except RuntimeError as exc:
+                ocr_error = str(exc)
 
         extracted = extract_metadata(pdf_path)
         title = metadata.get("title") or extracted.get("title") or "Unknown Title"
@@ -39,6 +54,7 @@ class Agent:
                 "title": title,
                 "author": author,
                 "requires_ocr": analysis["requires_ocr"],
+                "ocr_error": ocr_error,
             }
 
         convert_document(
@@ -55,4 +71,5 @@ class Agent:
             "title": title,
             "author": author,
             "requires_ocr": analysis["requires_ocr"],
+            "ocr_error": ocr_error,
         }
