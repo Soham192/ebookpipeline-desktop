@@ -33,6 +33,11 @@ def verify_smtp_credentials() -> dict[str, str | bool]:
         if os.environ.get("SMTP_USE_TLS") is not None
         else (False if smtp_host in ("localhost", "127.0.0.1") else True)
     )
+    smtp_use_ssl = (
+        os.environ.get("SMTP_USE_SSL", "false").lower() in ("1", "true", "yes")
+        if os.environ.get("SMTP_USE_SSL") is not None
+        else smtp_port == 465
+    )
 
     if not smtp_user or not smtp_password:
         return {
@@ -42,10 +47,14 @@ def verify_smtp_credentials() -> dict[str, str | bool]:
 
     try:
         context = ssl.create_default_context()
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
-            if smtp_use_tls:
-                server.starttls(context=context)
-            server.login(smtp_user, smtp_password)
+        if smtp_use_ssl:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=30) as server:
+                server.login(smtp_user, smtp_password)
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+                if smtp_use_tls:
+                    server.starttls(context=context)
+                server.login(smtp_user, smtp_password)
         return {"success": True, "message": "SMTP credentials are valid."}
     except Exception as exc:
         return {"success": False, "error": str(exc)}
@@ -56,6 +65,8 @@ def send_to_kindle(output_path: str, kindle_email: str, title: str, author: str,
 
     Returns a structured dict: { sent: bool, recipient: str, error?: str }
     """
+    print(">>> Inside send_to_kindle()")
+
     output_path = Path(output_path)
 
     def port_open(host: str, port: int, timeout: float = 1.0) -> bool:
@@ -78,11 +89,16 @@ def send_to_kindle(output_path: str, kindle_email: str, title: str, author: str,
 
     smtp_user = os.environ.get("SMTP_USER")
     smtp_password = os.environ.get("SMTP_PASSWORD")
-    smtp_sender = smtp_sender_override or os.environ.get("SMTP_SENDER")
+    smtp_sender = smtp_sender_override or os.environ.get("SMTP_SENDER") or smtp_user
     smtp_use_tls = (
         os.environ.get("SMTP_USE_TLS", "true").lower() in ("1", "true", "yes")
         if os.environ.get("SMTP_USE_TLS") is not None
         else (False if smtp_host in ("localhost", "127.0.0.1") else True)
+    )
+    smtp_use_ssl = (
+        os.environ.get("SMTP_USE_SSL", "false").lower() in ("1", "true", "yes")
+        if os.environ.get("SMTP_USE_SSL") is not None
+        else smtp_port == 465
     )
 
     if not smtp_sender:
@@ -117,18 +133,27 @@ def send_to_kindle(output_path: str, kindle_email: str, title: str, author: str,
     smtp_error = None
     try:
         context = ssl.create_default_context()
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
-            if smtp_use_tls:
-                try:
-                    server.starttls(context=context)
-                except Exception:
-                    pass
-            if smtp_user and smtp_password:
-                try:
-                    server.login(smtp_user, smtp_password)
-                except Exception as exc:
-                    raise RuntimeError(f"SMTP authentication failed: {exc}") from exc
-            server.sendmail(smtp_sender, [kindle_email], msg.as_string())
+        if smtp_use_ssl:
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=30) as server:
+                if smtp_user and smtp_password:
+                    try:
+                        server.login(smtp_user, smtp_password)
+                    except Exception as exc:
+                        raise RuntimeError(f"SMTP authentication failed: {exc}") from exc
+                server.sendmail(smtp_sender, [kindle_email], msg.as_string())
+        else:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+                if smtp_use_tls:
+                    try:
+                        server.starttls(context=context)
+                    except Exception:
+                        pass
+                if smtp_user and smtp_password:
+                    try:
+                        server.login(smtp_user, smtp_password)
+                    except Exception as exc:
+                        raise RuntimeError(f"SMTP authentication failed: {exc}") from exc
+                server.sendmail(smtp_sender, [kindle_email], msg.as_string())
         return {"sent": True, "recipient": kindle_email}
     except ConnectionRefusedError as exc:
         smtp_error = str(exc)

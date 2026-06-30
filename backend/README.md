@@ -106,6 +106,19 @@ SMTP_USER=your-smtp-username
 SMTP_PASSWORD=your-smtp-password
 SMTP_SENDER=your-approved-sender@example.com
 SMTP_USE_TLS=true
+SMTP_USE_SSL=false
+```
+
+For SMTPS on port `465`, use:
+
+```ini
+SMTP_HOST=smtp.example.com
+SMTP_PORT=465
+SMTP_USER=your-smtp-username
+SMTP_PASSWORD=your-smtp-password
+SMTP_SENDER=your-approved-sender@example.com
+SMTP_USE_TLS=false
+SMTP_USE_SSL=true
 ```
 
 Then start the backend from the `backend` folder:

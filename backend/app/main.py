@@ -19,7 +19,7 @@ app = FastAPI(title="Universal E-Reader Agent Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001","http://localhost:3002",],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -83,6 +83,8 @@ async def upload_pdf(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     delivery_adapter = DELIVERY_ADAPTERS[destination]
+    print("Destination selected:", destination)
+    print("Adapter:", type(delivery_adapter).__name__)
     delivery_result = delivery_adapter.deliver(
         Path(result["output_path"]),
         metadata,

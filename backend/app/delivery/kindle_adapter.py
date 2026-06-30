@@ -6,6 +6,8 @@ from app.tools.send_to_kindle import send_to_kindle
 
 class KindleAdapter(DeliveryAdapter):
     def deliver(self, epub_path: Path, metadata: dict[str, str], destination: str) -> dict[str, str | bool]:
+        print(">>> Inside KindleAdapter.deliver()")
+        print("Metadata:", metadata)
         kindle_email = metadata.get("kindle_email")
         sender_email = metadata.get("sender_email")
         if not kindle_email:
